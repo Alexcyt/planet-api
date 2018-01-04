@@ -1,6 +1,8 @@
 {
   "extends": "airbnb-base",
   "rules": {
-    "no-plusplus": "warn"
+    "no-plusplus": "warn",
+    "prefer-destructuring": "warn",
+    "comma-dangle": "warn"
   }
 }
