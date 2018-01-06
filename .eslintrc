@@ -3,6 +3,7 @@
   "rules": {
     "no-plusplus": "warn",
     "prefer-destructuring": "warn",
-    "comma-dangle": "warn"
+    "comma-dangle": "warn",
+    "no-restricted-syntax": "warn"
   }
 }

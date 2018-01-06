@@ -8,9 +8,8 @@ const { USER_TYPE } = CONSTANT;
 async function register(ctx) {
   const params = ctx.request.body;
   if (
-    typeof params.walletAddr !== 'string'
-    || typeof params.email !== 'string'
-    || typeof params.nickName !== 'string'
+    typeof params.walletAddr !== 'string' || typeof params.email !== 'string' || typeof params.nickName !== 'string'
+    || !params.walletAddr || !params.email || !params.nickName
   ) {
     ctx.body = RETCODE.BAD_REQUEST;
     return;
@@ -42,16 +41,16 @@ async function register(ctx) {
 
 async function updateUserInfo(ctx) {
   const params = ctx.request.body;
-  if (typeof params.email !== 'string' && typeof params.nickName !== 'string') {
+  if (!params.email && !params.nickName) {
     ctx.body = RETCODE.BAD_REQUEST;
     return;
   }
 
   const info = {};
-  if (typeof params.email === 'string') {
+  if (typeof params.email === 'string' && params.email) {
     info.email = params.email;
   }
-  if (typeof params.nickName === 'string') {
+  if (typeof params.nickName === 'string' && params.nickName) {
     info.nick_name = params.nickName;
   }
 
@@ -65,7 +64,7 @@ async function updateUserInfo(ctx) {
 
 async function login(ctx) {
   const params = ctx.request.body;
-  if (typeof params.walletAddr !== 'string') {
+  if (typeof params.walletAddr !== 'string' || !params.walletAddr) {
     ctx.body = RETCODE.BAD_REQUEST;
     return;
   }
@@ -94,7 +93,7 @@ async function logout(ctx) {
 
 async function getUserInfo(ctx) {
   const params = ctx.params;
-  if (typeof params.walletAddr !== 'string') {
+  if (typeof params.walletAddr !== 'string' || !params.walletAddr) {
     ctx.body = RETCODE.BAD_REQUEST;
     return;
   }
