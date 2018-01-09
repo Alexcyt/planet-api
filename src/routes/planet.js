@@ -28,8 +28,8 @@ async function getPlanets(ctx) {
     }
 
     if (search) {
-      const tmpQuery = 'and where MATCH(planet.planet_no, planet.english_name,' +
-        'planet.chinese_name, planet.custom_name) AGAINST(? in NATURAL LANGUAGE MODE)';
+      const tmpQuery = 'and where MATCH(planet.english_name, planet.chinese_name, planet.custom_name)' +
+        ' AGAINST(? in NATURAL LANGUAGE MODE)';
       qb.raw(tmpQuery, [search]);
     }
   };
@@ -169,16 +169,24 @@ async function discoverPlanetByAdmin(ctx) {
     return;
   }
 
-  const planet = await Planet.query((qb) => {
-    qb.whereNull('user_id').orderByRaw('RAND() limit 1');
-  }).fetch();
+  const [planet, count] = await [
+    Planet.query((qb) => {
+      qb.whereNull('user_id').orderByRaw('RAND() limit 1');
+    }).fetch(),
+    Planet.query((qb) => {
+      qb.whereNotNull('user_id');
+    }).count()
+  ];
 
   if (!planet) {
     ctx.body = Object.assign({}, RETCODE.NOT_FOUND, { msg: 'There does not have new planet' });
     return;
   }
 
-  await planet.save({ user_id: curUser.id }, { patch: true });
+  await planet.save({
+    user_id: curUser.id,
+    planet_no: count + 1
+  }, { patch: true });
 
   ctx.body = Object.assign({}, RETCODE.SUCCESS, {
     data: {
