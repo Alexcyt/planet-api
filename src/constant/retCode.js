@@ -22,4 +22,7 @@ module.exports = {
   NOT_FOUND: {
     retCode: 40005,
   },
+  ETHEREUM_ERROR: {
+    retCode: 40006,
+  },
 };

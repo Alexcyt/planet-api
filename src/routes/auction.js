@@ -1,14 +1,16 @@
 const RETCODE = require('../constant/retCode');
 // const CONSTANT = require('../constant/common');
 const model = require('../model/index');
+const ethnet = require('../lib/ethnet');
 
 const { Auction, Planet } = model;
+const { planetCoreInstance } = ethnet;
 
 async function createAuction(ctx) {
   const params = ctx.request.body;
   if (typeof params.planetId !== 'number' || Number.isNaN(params.planetId)
-    || typeof params.startPrice !== 'number' || Number.isNaN(params.startPrice)
-    || typeof params.endPrice !== 'number' || Number.isNaN(params.endPrice)
+    || typeof params.startPrice !== 'string' || !params.startPrice.match(/^\d+$/g)
+    || typeof params.endPrice !== 'string' || !params.endPrice.match(/^\d+$/g)
     || typeof params.duration !== 'number' || Number.isNaN(params.duration)) {
     ctx.body = RETCODE.BAD_REQUEST;
     return;
@@ -60,7 +62,6 @@ async function getAuctionInfo(ctx) {
   });
 }
 
-// TODO 需要向以太网询问交易是否完成——检查所买星球是否已经属于自己
 async function buyPlanet(ctx) {
   const params = ctx.request.body;
   if (!typeof params.auctionId !== 'number' || Number.isNaN(params.auctionId)) {
@@ -74,10 +75,14 @@ async function buyPlanet(ctx) {
     return;
   }
 
-  // 访问合约，检测交易是否完成。。。
-
   const curUser = ctx.session.curUser;
   const planet = auction.related('planet');
+  const ownerAddr = await planetCoreInstance.methods.ownerOf(planet.get('planet_no')).call();
+  if (ownerAddr !== curUser.walletAddr) {
+    ctx.body = RETCODE.UNAUTHORIZED;
+    return;
+  }
+
   await [
     planet.save({ user_id: curUser.id }, { patch: true }),
     auction.destroy()
@@ -86,8 +91,34 @@ async function buyPlanet(ctx) {
   ctx.body = RETCODE.SUCCESS;
 }
 
+async function cancelAuction(ctx) {
+  const params = ctx.requst.body;
+  if (!typeof params.auctionId !== 'number' || Number.isNaN(params.auctionId)) {
+    ctx.body = RETCODE.BAD_REQUEST;
+    return;
+  }
+
+  const auction = await new Auction({ id: params.auctionId }).fetch({ withRelated: 'seller' });
+  if (!auction) {
+    ctx.body = Object.assign({}, RETCODE.NOT_FOUND, { msg: 'Auction does not exist' });
+    return;
+  }
+
+  const curUser = ctx.session.curUser;
+  const seller = auction.related('seller');
+  if (curUser.id !== seller.get('id')) {
+    ctx.body = RETCODE.UNAUTHORIZED;
+    return;
+  }
+
+  await auction.destroy();
+
+  ctx.body = RETCODE.SUCCESS;
+}
+
 module.exports = {
   createAuction,
   getAuctionInfo,
-  buyPlanet
+  buyPlanet,
+  cancelAuction
 };

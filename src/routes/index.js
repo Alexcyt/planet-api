@@ -23,5 +23,6 @@ authRouter.patch('/planets', planetRoutes.customPlanetInfo);
 authRouter.post('/planets/discover', planetRoutes.discoverPlanetByAdmin);
 authRouter.post('/auctions', auctionRoutes.createAuction);
 authRouter.post('/auctions/buy', auctionRoutes.buyPlanet);
+authRouter.delete('/auctions', auctionRoutes.cancelAuction);
 
 module.exports = { router, authRouter };

@@ -1,5 +1,5 @@
-const PlanetCore = artifacts.require("PlanetCore");
-const SaleClockAuction = artifacts.require("SaleClockAuction");
+const PlanetCore = artifacts.require('PlanetCore');
+const SaleClockAuction = artifacts.require('SaleClockAuction');
 const Promise = require('bluebird');
 const writeFile = Promise.promisify(require('fs').writeFile);
 
@@ -16,10 +16,10 @@ const config = require(configPath);
 
 module.exports = function (deployer) {
   deployer.deploy(PlanetCore)
-    .then(function () {
+    .then(() => {
       return deployer.deploy(SaleClockAuction, PlanetCore.address, 10);
     })
-    .then(function () {
+    .then(() => {
       config.ethereumNet.contract = {
         planetCoreAddr: PlanetCore.address,
         saleClockAuctionAddr: SaleClockAuction.address

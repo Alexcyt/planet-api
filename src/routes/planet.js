@@ -1,9 +1,19 @@
 const RETCODE = require('../constant/retCode');
 const CONSTANT = require('../constant/common');
 const model = require('../model/index');
+const Promise = require('bluebird');
+const ethnet = require('../lib/ethnet');
+const log = require('../lib/log');
 
-const { Planet, User } = model;
+const { Planet, User, Auction } = model;
 const { USER_TYPE } = CONSTANT;
+const {
+  web3,
+  planetCoreInstance,
+  saleAuctionInstance,
+  gasLimit,
+  admin
+} = ethnet;
 
 async function getPlanets(ctx) {
   const params = ctx.params;
@@ -62,6 +72,7 @@ async function getPlanets(ctx) {
     planets.push({
       id: planet.get('id'),
       planetNo: planet.get('planet_no'),
+      location: planet.get('location'),
       englishName: planet.get('english_name'),
       chineseName: planet.get('chinese_name'),
       customName: planet.get('custom_name'),
@@ -116,6 +127,7 @@ async function getPlanetInfo(ctx) {
     data: {
       id: planet.get('id'),
       planetNo: planet.get('planet_no'),
+      location: planet.get('location'),
       englishName: planet.get('english_name'),
       chineseName: planet.get('chinese_name'),
       customName: planet.get('custom_name'),
@@ -161,48 +173,97 @@ async function customPlanetInfo(ctx) {
   ctx.body = RETCODE.SUCCESS;
 }
 
+async function discoverPlanet(planet) {
+  await web3.eth.personal.unlockAccount(admin.walletAddr, admin.password);
+  let resp = await planetCoreInstance.methods.discoverPlanetAndAuction(planet.get('location')).send({
+    from: admin.walletAddr,
+    gas: gasLimit
+  });
+  log.debug(resp);
+
+  const respEvents = resp.events;
+  if (!respEvents || respEvents.Discover || respEvents.Transfer) {
+    throw new Error('discover planet transaction on ethereum error');
+  }
+
+  const planetNo = respEvents.Discover.returnValues.planetId;
+  resp = await saleAuctionInstance.methods.getAuction(planetNo).call();
+  log.debug(resp);
+  const auctionInfo = {
+    planet_id: planet.get('id'),
+    start_price: resp.startingPrice,
+    end_price: resp.endingPrice,
+    duration: Number.parseInt(resp.duration, 10),
+    create_time: new Date(Number.parseInt(resp.startedAt, 10) * 1000)
+  };
+
+  const [_, auction] = await Promise.all([  // eslint-disable-line
+    Planet.save({
+      user_id: admin.id,
+      planet_no: planetNo
+    }, { patch: true }),
+    new Auction(auctionInfo).save()
+  ]);
+
+  return {
+    planetId: planet.get('id'),
+    auctionId: auction.get('id')
+  };
+}
+
 async function discoverPlanetByAdmin(ctx) {
   const curUser = ctx.curUser;
   const tmpUser = await new User({ id: curUser.id }).fetch();
-  if (!tmpUser || tmpUser.get('type') !== USER_TYPE.ADMIN) {
+  if (!tmpUser || tmpUser.get('type') !== USER_TYPE.ADMIN || tmpUser.walletAddr !== admin.walletAddr) {
     ctx.body = RETCODE.UNAUTHORIZED;
     return;
   }
 
-  const [planet, count] = await [
-    Planet.query((qb) => {
+  const params = ctx.request.body;
+  let planet = null;
+  if (typeof params.planetId !== 'number' || Number.isNaN(params.planetId)) {
+    planet = await Planet.query((qb) => {
       qb.whereNull('user_id').orderByRaw('RAND() limit 1');
-    }).fetch(),
-    Planet.query((qb) => {
-      qb.whereNotNull('user_id');
-    }).count()
-  ];
+    }).fetch();
+  } else {
+    const planetId = Number.parseInt(params.planetId, 10);
+    planet = Planet.query((qb) => {
+      qb.whereNull('user_id').andWhere('id', '=', planetId);
+    }).fetch();
+  }
 
   if (!planet) {
     ctx.body = Object.assign({}, RETCODE.NOT_FOUND, { msg: 'There does not have new planet' });
     return;
   }
 
-  await planet.save({
-    user_id: curUser.id,
-    planet_no: count + 1
-  }, { patch: true });
+  let data = null;
+  try {
+    data = await discoverPlanet(planet);
+  } catch (err) {
+    ctx.body = Object.assign({}, RETCODE.ETHEREUM_ERROR, { msg: err.msg });
+    return;
+  }
 
-  ctx.body = Object.assign({}, RETCODE.SUCCESS, {
-    data: {
-      planetId: planet.get('id')
-    }
-  });
+  ctx.body = Object.assign({}, RETCODE.SUCCESS, { data });
 }
 
-// TODO 管理员自动生成星球，需要调用合约
-// async function discoverPlanetAuto(ctx) {
-//
-// }
+async function discoverPlanetAuto() {
+  const planet = await Planet.query((qb) => {
+    qb.whereNull('user_id').orderByRaw('RAND() limit 1');
+  }).fetch();
+
+  if (!planet) {
+    throw new Error('There does not have new planet');
+  }
+
+  return discoverPlanet(planet); // return语句的await不需要？
+}
 
 module.exports = {
   getPlanets,
   getPlanetInfo,
   customPlanetInfo,
-  discoverPlanetByAdmin
+  discoverPlanetByAdmin,
+  discoverPlanetAuto  // eslint-disable-line
 };
