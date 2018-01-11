@@ -4,6 +4,8 @@ const model = require('../model/index');
 const Promise = require('bluebird');
 const ethnet = require('../lib/ethnet');
 const log = require('../lib/log');
+const schedule = require('node-schedule');
+const config = require('config');
 
 const { Planet, User, Auction } = model;
 const { USER_TYPE } = CONSTANT;
@@ -260,10 +262,11 @@ async function discoverPlanetAuto() {
   return discoverPlanet(planet); // return语句的await不需要？
 }
 
+schedule.scheduleJob(`*/${config.discoverIntervel} * * * *`, discoverPlanetAuto);
+
 module.exports = {
   getPlanets,
   getPlanetInfo,
   customPlanetInfo,
-  discoverPlanetByAdmin,
-  discoverPlanetAuto  // eslint-disable-line
+  discoverPlanetByAdmin
 };
