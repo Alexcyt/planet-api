@@ -1,6 +1,7 @@
 const RETCODE = require('../constant/retCode');
 const CONSTANT = require('../constant/common');
 const model = require('../model/index');
+const gravatar = require('gravatar');
 
 const { User } = model;
 const { USER_TYPE } = CONSTANT;
@@ -21,10 +22,12 @@ async function register(ctx) {
     return;
   }
 
+  const headImg = gravatar.url(params.email, {s: '200', r: 'x', d: 'retro'}, false);
   const user = await new User({
     wallet_addr: params.walletAddr,
     nick_name: params.nickName,
     email: params.email,
+    head_img: headImg,
     type: USER_TYPE.ORDINARY,
   }).save();
 
@@ -33,10 +36,12 @@ async function register(ctx) {
     walletAddr: user.get('wallet_addr'),
     nickName: user.get('nick_name'),
     email: user.get('email'),
-    headImg: user.get('head_img'),
+    headImg,
     type: user.get('type'),
   };
-  ctx.body = RETCODE.SUCCESS;
+  ctx.body = Object.assign({}, RETCODE.SUCCESS, {
+    data: { headImg }
+  });
 }
 
 async function updateUserInfo(ctx) {
@@ -83,7 +88,14 @@ async function login(ctx) {
     headImg: user.get('head_img'),
     type: user.get('type')
   };
-  ctx.body = RETCODE.SUCCESS;
+
+  ctx.body = Object.assign({}, RETCODE.SUCCESS, {
+    data: {
+      nickName: user.get('nick_name'),
+      email: user.get('email'),
+      headImg: user.get('head_img')
+    }
+  });
 }
 
 async function logout(ctx) {
@@ -106,7 +118,6 @@ async function getUserInfo(ctx) {
 
   ctx.body = Object.assign({}, RETCODE.SUCCESS, {
     data: {
-      walletAddr: user.get('wallet_addr'),
       nickName: user.get('nick_name'),
       headImg: user.get('head_img')
     }
@@ -114,7 +125,8 @@ async function getUserInfo(ctx) {
 }
 
 async function getMyInfo(ctx) {
-  ctx.body = ctx.session.curUser;
+  const { walletAddr, nickName, headImg } = ctx.session.curUser;
+  ctx.body = { walletAddr, nickName, headImg };
 }
 
 module.exports = {

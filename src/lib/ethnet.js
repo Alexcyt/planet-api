@@ -12,7 +12,7 @@ web3.setProvider(new web3.providers.HttpProvider(provider));
 const planetCoreInstance = new web3.eth.Contract(planetCoreSource.abi, planetCoreAddr);
 const saleAuctionInstance = new web3.eth.Contract(saleAuctionSource.abi, saleClockAuctionAddr);
 
-module.export = {
+module.exports = {
   web3,
   planetCoreInstance,
   saleAuctionInstance,

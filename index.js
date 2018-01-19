@@ -1,4 +1,5 @@
 const Koa = require('koa');
+const cors = require('@koa/cors');
 const config = require('config');
 const session = require('koa-session');
 const log = require('./src/lib/log');
@@ -12,6 +13,9 @@ const app = new Koa();
 app.keys = [config.sessionSecretKey];
 
 app.use(globalError());
+app.use(cors({
+  credentials: true
+}));
 app.use(koaLogger());
 app.use(session(app));
 app.use(bodyParser());

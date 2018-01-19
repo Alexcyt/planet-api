@@ -229,7 +229,7 @@ async function discoverPlanetByAdmin(ctx) {
     }).fetch();
   } else {
     const planetId = Number.parseInt(params.planetId, 10);
-    planet = Planet.query((qb) => {
+    planet = await Planet.query((qb) => {
       qb.whereNull('user_id').andWhere('id', '=', planetId);
     }).fetch();
   }
@@ -262,7 +262,7 @@ async function discoverPlanetAuto() {
   return discoverPlanet(planet); // return语句的await不需要？
 }
 
-schedule.scheduleJob(`*/${config.discoverIntervel} * * * *`, discoverPlanetAuto);
+// schedule.scheduleJob(`*/${config.discoverIntervel} * * * *`, discoverPlanetAuto);
 
 module.exports = {
   getPlanets,

@@ -32,4 +32,4 @@ var Auction = bookshelf.Model.extend({
   }
 });
 
-module.export = { bookshelf, User, Planet };
+module.exports = { bookshelf, User, Planet, Auction };
