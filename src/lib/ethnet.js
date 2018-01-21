@@ -12,6 +12,19 @@ web3.setProvider(new web3.providers.HttpProvider(provider));
 const planetCoreInstance = new web3.eth.Contract(planetCoreSource.abi, planetCoreAddr);
 const saleAuctionInstance = new web3.eth.Contract(saleAuctionSource.abi, saleClockAuctionAddr);
 
+async function init() {
+  const { walletAddr, password } = admin;
+  await web3.eth.personal.unlockAccount(walletAddr, password, 300);
+  const isPaused = await planetCoreInstance.methods.paused().call();
+  if (isPaused) {
+    await planetCoreInstance.methods
+      .setSaleAuctionAddress(saleClockAuctionAddr).send({ from: walletAddr });
+    await planetCoreInstance.methods.unpause().send({ from: walletAddr });
+  }
+}
+
+init();
+
 module.exports = {
   web3,
   planetCoreInstance,

@@ -7,7 +7,12 @@ const log = require('../lib/log');
 const schedule = require('node-schedule');
 const config = require('config');
 
-const { Planet, User, Auction } = model;
+const {
+  Planet,
+  User,
+  Auction,
+  bookshelf
+} = model;
 const { USER_TYPE } = CONSTANT;
 const {
   web3,
@@ -18,7 +23,7 @@ const {
 } = ethnet;
 
 async function getPlanets(ctx) {
-  const params = ctx.params;
+  const params = ctx.request.query;
   const page = params.page || 1;
   const pageSize = params.pageSize || 10;
   const forSale = params.for_sale || false;
@@ -34,21 +39,24 @@ async function getPlanets(ctx) {
     }
 
     qb.whereNotNull('user_id');
-    if (params.wallet_addr) {
+    if (params.walletAddr) {
       qb.innerJoin('user', 'planet.user_id', 'user.id')
-        .andWhere('user.wallet_addr', '=', params.wallet_addr);
+        .andWhere('user.wallet_addr', '=', params.walletAddr);
     }
 
     if (search) {
-      const tmpQuery = 'and where MATCH(planet.english_name, planet.chinese_name, planet.custom_name)' +
-        ' AGAINST(? in NATURAL LANGUAGE MODE)';
-      qb.raw(tmpQuery, [search]);
+      qb.andWhere((qb2) => {
+        qb2.where('planet.planet_no', 'like', `${search}%`)
+          .orWhere('planet.english_name', 'like', `${search}%`)
+          .orWhere('planet.chinese_name', 'like', `${search}%`)
+          .orWhere('planet.custom_name', 'like', `${search}%`);
+      });
     }
   };
 
   const results = await Planet
     .query(queryFunc)
-    .orderBy('create_time', orderDirection)
+    .orderBy('discover_time', orderDirection)
     .fetchPage({
       page,
       pageSize,
@@ -78,10 +86,13 @@ async function getPlanets(ctx) {
       englishName: planet.get('english_name'),
       chineseName: planet.get('chinese_name'),
       customName: planet.get('custom_name'),
+      officialIntro: planet.get('official_intro'),
+      customIntro: planet.get('custom_intro'),
       img: planet.get('img'),
       discoverTime: planet.get('discover_time'),
       owner: {
         nickName: user.get('nick_name'),
+        headImg: user.get('head_img'),
         walletAddr: user.get('wallet_addr')
       },
       auction: sale
@@ -98,14 +109,14 @@ async function getPlanets(ctx) {
 
 async function getPlanetInfo(ctx) {
   const params = ctx.params;
-  if (typeof params.planetId !== 'string' || !params.planetId.match(/^\d+$/g)) {
+  if (typeof params.planetNo !== 'string' || !params.planetNo.match(/^\d+$/g)) {
     ctx.body = RETCODE.BAD_REQUEST;
     return;
   }
 
-  const planetId = Number.parseInt(params.planetId, 10);
+  const planetNo = Number.parseInt(params.planetNo, 10);
   const planet = await Planet.query((qb) => {
-    qb.whereNotNull('user_id').andWhere('id', '=', planetId);
+    qb.whereNotNull('user_id').andWhere('planet_no', '=', planetNo);
   }).fetch({ withRelated: ['user', 'auction'] });
   if (!planet) {
     ctx.body = Object.assign({}, RETCODE.NOT_FOUND, { msg: 'planet doex not exist' });
@@ -176,7 +187,7 @@ async function customPlanetInfo(ctx) {
 }
 
 async function discoverPlanet(planet) {
-  await web3.eth.personal.unlockAccount(admin.walletAddr, admin.password);
+  await web3.eth.personal.unlockAccount(admin.walletAddr, admin.password, 300);
   let resp = await planetCoreInstance.methods.discoverPlanetAndAuction(planet.get('location')).send({
     from: admin.walletAddr,
     gas: gasLimit
@@ -184,7 +195,7 @@ async function discoverPlanet(planet) {
   log.debug(resp);
 
   const respEvents = resp.events;
-  if (!respEvents || respEvents.Discover || respEvents.Transfer) {
+  if (!respEvents || !respEvents.Discover || !respEvents.Transfer) {
     throw new Error('discover planet transaction on ethereum error');
   }
 
@@ -199,13 +210,15 @@ async function discoverPlanet(planet) {
     create_time: new Date(Number.parseInt(resp.startedAt, 10) * 1000)
   };
 
-  const [_, auction] = await Promise.all([  // eslint-disable-line
-    Planet.save({
-      user_id: admin.id,
-      planet_no: planetNo
-    }, { patch: true }),
-    new Auction(auctionInfo).save()
-  ]);
+  const [_, auction] = await bookshelf.transaction(t =>  // eslint-disable-line
+    Promise.all([
+      planet.save({
+        user_id: admin.id,
+        planet_no: planetNo.toString(),
+        discover_time: new Date(),
+      }, { patch: true, transacting: t }),
+      new Auction(auctionInfo).save(null, { transacting: t })
+    ]));
 
   return {
     planetId: planet.get('id'),
@@ -225,7 +238,7 @@ async function discoverPlanetByAdmin(ctx) {
   let planet = null;
   if (typeof params.planetId !== 'number' || Number.isNaN(params.planetId)) {
     planet = await Planet.query((qb) => {
-      qb.whereNull('user_id').orderByRaw('RAND() limit 1');
+      qb.whereNull('user_id').orderByRaw('RAND()');
     }).fetch();
   } else {
     const planetId = Number.parseInt(params.planetId, 10);
@@ -251,18 +264,24 @@ async function discoverPlanetByAdmin(ctx) {
 }
 
 async function discoverPlanetAuto() {
-  const planet = await Planet.query((qb) => {
-    qb.whereNull('user_id').orderByRaw('RAND() limit 1');
-  }).fetch();
+  try {
+    const planet = await Planet.query((qb) => {
+      qb.whereNull('user_id').orderByRaw('RAND()');
+    }).fetch();
 
-  if (!planet) {
-    throw new Error('There does not have new planet');
+    if (!planet) {
+      throw new Error('There does not have new planet');
+    }
+
+    await discoverPlanet(planet); // return语句的await不需要？
+  } catch (err) {
+    log.error(err);
   }
-
-  return discoverPlanet(planet); // return语句的await不需要？
 }
 
-// schedule.scheduleJob(`*/${config.discoverIntervel} * * * *`, discoverPlanetAuto);
+setTimeout(() => {
+  schedule.scheduleJob(`*/${config.discoverIntervel} * * * *`, discoverPlanetAuto);
+}, 10000);
 
 module.exports = {
   getPlanets,

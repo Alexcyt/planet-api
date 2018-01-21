@@ -11,7 +11,7 @@ router.post('/users', userRoutes.register);
 router.post('/users/login', userRoutes.login);
 router.get('/users/:walletAddr', userRoutes.getUserInfo);
 router.get('/planets', planetRoutes.getPlanets);
-router.get('/planets/:planetId', planetRoutes.getPlanetInfo);
+router.get('/planets/:planetNo', planetRoutes.getPlanetInfo);
 router.get('/auctions/:auctionId', auctionRoutes.getAuctionInfo);
 
 authRouter.use(userAuth());

@@ -22,7 +22,7 @@ async function register(ctx) {
     return;
   }
 
-  const headImg = gravatar.url(params.email, {s: '200', r: 'x', d: 'retro'}, false);
+  const headImg = gravatar.url(params.email, { s: '200', r: 'x', d: 'retro' }, false);
   const user = await new User({
     wallet_addr: params.walletAddr,
     nick_name: params.nickName,

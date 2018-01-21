@@ -3,7 +3,7 @@ const RETCODE = require('../constant/retCode');
 const model = require('../model/index');
 const ethnet = require('../lib/ethnet');
 
-const { Auction, Planet } = model;
+const { Auction, Planet, bookshelf } = model;
 const { planetCoreInstance } = ethnet;
 
 async function createAuction(ctx) {
@@ -77,16 +77,18 @@ async function buyPlanet(ctx) {
 
   const curUser = ctx.session.curUser;
   const planet = auction.related('planet');
-  const ownerAddr = await planetCoreInstance.methods.ownerOf(planet.get('planet_no')).call();
+  const planetNo = Number.parseInt(planet.get('planet_no'), 10);
+  const ownerAddr = await planetCoreInstance.methods.ownerOf(planetNo).call();
   if (ownerAddr !== curUser.walletAddr) {
     ctx.body = RETCODE.UNAUTHORIZED;
     return;
   }
 
-  await [
-    planet.save({ user_id: curUser.id }, { patch: true }),
-    auction.destroy()
-  ];
+  await bookshelf.transaction(t =>
+    Promise.all([
+      planet.save({ user_id: curUser.id }, { patch: true, transacting: t }),
+      auction.destroy({ transacting: t })
+    ]));
 
   ctx.body = RETCODE.SUCCESS;
 }
