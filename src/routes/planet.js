@@ -26,7 +26,7 @@ async function getPlanets(ctx) {
   const params = ctx.request.query;
   const page = params.page || 1;
   const pageSize = params.pageSize || 10;
-  const forSale = params.for_sale || false;
+  const forSale = params.forSale === 'true';
   const search = params.search ? params.search.trim() : '';
   let orderDirection = 'desc';
   if (params.order_direction === 'asc') {
@@ -114,7 +114,7 @@ async function getPlanetInfo(ctx) {
     return;
   }
 
-  const planetNo = Number.parseInt(params.planetNo, 10);
+  const planetNo = params.planetNo;
   const planet = await Planet.query((qb) => {
     qb.whereNotNull('user_id').andWhere('planet_no', '=', planetNo);
   }).fetch({ withRelated: ['user', 'auction'] });
@@ -178,7 +178,7 @@ async function customPlanetInfo(ctx) {
     info.custom_name = params.customName;
   }
   if (typeof params.customIntro === 'string' && params.customIntro) {
-    info.custom_intro = params.custom_intro;
+    info.custom_intro = params.customIntro;
   }
 
   await planet.save(info, { patch: true });
@@ -273,7 +273,7 @@ async function discoverPlanetAuto() {
       throw new Error('There does not have new planet');
     }
 
-    await discoverPlanet(planet); // return语句的await不需要？
+    await discoverPlanet(planet);
   } catch (err) {
     log.error(err);
   }

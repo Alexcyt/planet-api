@@ -17,7 +17,7 @@ async function createAuction(ctx) {
   }
 
   const curUser = ctx.session.curUser;
-  const planet = new Planet({ id: params.planetId, user_id: curUser.user_id }).fetch({ withRelated: 'auction' });
+  const planet = await new Planet({ id: params.planetId, user_id: curUser.id }).fetch({ withRelated: 'auction' });
   if (!planet || planet.related('auction').get('id')) {
     ctx.body = RETCODE.UNAUTHORIZED;
     return;
@@ -27,12 +27,17 @@ async function createAuction(ctx) {
     planet_id: params.planetId,
     start_price: params.startPrice,
     end_price: params.endPrice,
-    duration: params.duration
+    duration: params.duration,
+    create_time: new Date()
   }).save();
 
   ctx.body = Object.assign({}, RETCODE.SUCCESS, {
     data: {
-      auctionId: auction.get('id')
+      id: auction.get('id'),
+      startPrice: auction.get('start_price'),
+      endPrice: auction.get('end_price'),
+      createTime: auction.get('create_time'),
+      duration: auction.get('duration')
     }
   });
 }
@@ -64,7 +69,7 @@ async function getAuctionInfo(ctx) {
 
 async function buyPlanet(ctx) {
   const params = ctx.request.body;
-  if (!typeof params.auctionId !== 'number' || Number.isNaN(params.auctionId)) {
+  if (typeof params.auctionId !== 'number' || Number.isNaN(params.auctionId)) {
     ctx.body = RETCODE.BAD_REQUEST;
     return;
   }
@@ -78,7 +83,8 @@ async function buyPlanet(ctx) {
   const curUser = ctx.session.curUser;
   const planet = auction.related('planet');
   const planetNo = Number.parseInt(planet.get('planet_no'), 10);
-  const ownerAddr = await planetCoreInstance.methods.ownerOf(planetNo).call();
+  let ownerAddr = await planetCoreInstance.methods.ownerOf(planetNo).call();
+  ownerAddr = ownerAddr.toLowerCase();
   if (ownerAddr !== curUser.walletAddr) {
     ctx.body = RETCODE.UNAUTHORIZED;
     return;
@@ -94,8 +100,8 @@ async function buyPlanet(ctx) {
 }
 
 async function cancelAuction(ctx) {
-  const params = ctx.requst.body;
-  if (!typeof params.auctionId !== 'number' || Number.isNaN(params.auctionId)) {
+  const params = ctx.request.body;
+  if (typeof params.auctionId !== 'number' || Number.isNaN(params.auctionId)) {
     ctx.body = RETCODE.BAD_REQUEST;
     return;
   }

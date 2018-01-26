@@ -60,9 +60,13 @@ async function updateUserInfo(ctx) {
   }
 
   const curUser = ctx.session.curUser;
-  const user = await new User({ id: curUser.id }).save(info, { patch: true });
-  curUser.nickName = user.get('nick_name');
-  curUser.email = user.get('email');
+  await new User({ id: curUser.id }).save(info, { patch: true });
+  if (params.nickName) {
+    curUser.nickName = params.nickName;
+  }
+  if (params.email) {
+    curUser.email = params.email;
+  }
 
   ctx.body = RETCODE.SUCCESS;
 }

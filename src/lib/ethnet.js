@@ -32,5 +32,5 @@ module.exports = {
   planetCoreAddr,
   saleClockAuctionAddr,
   admin,
-  gasLimit: 6e6
+  gasLimit: 1e6 // 测试值较大，以后要改小
 };
